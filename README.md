@@ -1,6 +1,15 @@
 # Introduction
 This is a step-by-step guide to spin up the netboot infrastructure as well as creating new images for the clients to boot from. In this scenario, you won't need to have a CI / CD Pipeline ready (which we do recommend). This will hopefully help you to get a better insight on how we have structured this project. Please Note, that several commands can vary and that you might need to tweak some stuff here and there.
 
+Because we are using submodules, we need to pull the latest files and update our revisiton to the latest commit:
+
+```
+git submodule update --init --recursive
+git pull --recurse-submodules
+git submodule update --recursive
+```
+
+
 # Prerequisites
 For the whole Setup to work, there are a few required services needed, in order to fully support this project. In order for you to have a better understanding, we will refer to the netbootserver with the IP `192.168.1.101`.
 

@@ -4,6 +4,10 @@ This is a step-by-step guide to spin up the netboot infrastructure as well as cr
 \
 &nbsp;
 
+This image should give you an idea of the whole process, which you are going to tackle within this project.
+
+![Netboot installation and usage flow](../netbooting-thinclients/docs/installation_flow.png "Installation and usage Flow")
+
 ## Repository Overview
 
 Our Main repository consists of a few submodules. Please check out the README in each of the repositories to understand what it does. We will assume that you are already in the current working directory of the git repo.

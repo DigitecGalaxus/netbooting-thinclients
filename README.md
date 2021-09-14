@@ -6,7 +6,7 @@ This is a step-by-step guide to spin up the netboot infrastructure as well as cr
 
 This image should give you an idea of the whole process, which you are going to tackle within this project.
 
-![Netboot installation and usage flow](../netbooting-thinclients/docs/installation_flow.png "Installation and usage Flow")
+![Netboot installation and usage flow](https://github.com/DigitecGalaxus/netbooting-thinclients/blob/main/docs/installation_flow.png "Installation and usage Flow")
 
 ## Repository Overview
 

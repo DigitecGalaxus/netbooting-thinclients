@@ -222,14 +222,14 @@ cd .. && cd kernel-updates
 This script needs the following Variables passed to it:
 
 - pemFilePath
-- squashfsFileName (this file should be available after executing the `./build.sh` from step 1.)
+- squashfsAbsolutePath (this file should be available after executing the `./build.sh` from step 1. Pass the absolute Path of it!)
 - netbootServerIP
 - netbootUsername
 - folderToPromoteTo (either prod or dev)
 
 ```cmd
 cd .. && cd promote
-./promote.sh "~/.ssh/netbootserver-priv.pem" "21-06-22-kde-master-55fa393.squashfs" "192.168.1.101" "USERNAME" "prod"
+./promote.sh "~/.ssh/netbootserver-priv.pem" "/home/USERNAME/GITROOT/thinclient/build/21-06-22-kde-master-55fa393.squashfs" "192.168.1.101" "USERNAME" "prod"
 ```
 
 ### 4. Generate the IPXE Menu based on the promoted Images
@@ -239,10 +239,10 @@ The following script will generate an IPXE Menu, which is used by the netboot se
 - pemFilePath
 - netbootServerIP
 - netbootUsername
-- squashfsFileName (this file should be available after executing the `./build.sh` from step 1.)
+- squashfsAbsolutePath (this file should be available after executing the `./build.sh` from step 1. Pass the absolute Path of it!)
 
 ```cmd
-./generate-new-ipxe-menus.sh "~/.ssh/netbootserver-priv.pem" "192.168.1.101" "USERNAME" "21-06-22-kde-master-55fa393.squashfs"
+./generate-new-ipxe-menus.sh "~/.ssh/netbootserver-priv.pem" "192.168.1.101" "USERNAME" "/home/USERNAME/GITROOT/thinclient/build/21-06-22-kde-master-55fa393.squashfs"
 ```
 
 ### 5. When you have reached it this far, it looks very promising, that everything should be in place as expected! Now, you need to verify, if this is the case! To check if everything is in place, check the following directories and files

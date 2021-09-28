@@ -10,3 +10,6 @@
 [submodule "netboot"]
 	path = netboot
 	url = https://github.com/DigitecGalaxus/netboot.git
+[submodule "thinclients"]
+	path = thinclients
+	url = https://github.com/DigitecGalaxus/thinclients.git

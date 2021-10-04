@@ -16,9 +16,9 @@ The use case we've implemented this for is for browser-based tasks. Both in reta
 
 This is a step-by-step guide to spin up the netboot infrastructure as well as creating new images for the clients to boot from. In this scenario, you won't need to have a CI / CD Pipeline ready (which we do recommend). This will hopefully help you to get a better insight on how we have structured this project. Please note, that several commands can vary and that you might need to tweak some stuff here and there.
 
-![Boot process](https://github.com/DigitecGalaxus/netbooting-thinclients/blob/main/docs/boot_process.svg "Boot process")
-
 ## Boot process
+
+![Boot process](https://github.com/DigitecGalaxus/netbooting-thinclients/blob/main/docs/boot_process.svg "Boot process")
 
 1. A new client, which is configured in BIOS to boot via network is booted.
 2.  The client sends a DHCP broadcast to obtain it's IP and network booting information.

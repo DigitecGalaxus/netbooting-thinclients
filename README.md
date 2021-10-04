@@ -1,31 +1,38 @@
 # Introduction
 
+This is a documentation repository that ties together all the repositories concerned with a thin client that can be network booted.
+In this context, a **thin client** is a lightweight operating system containing a small amount of tools only, compared to a full client such as a client running the Windows operating system.
+There are a couple of advantages to running a thin client:
+
+- Security: less attack surface, as fewer components are running
+- Security: an always up-to-date operating system including applications, as the image can be rebuilt periodically
+- Maintenance: the devices do not need to be managed and patched (e.g. SCCM or Intune with Windows)
+- Cost: No licenses need to be payed
+- Cost: Cheaper devices can be used, no full-blown laptops or PCs are needed. The hard disk can be omitted completely.
+
+The thin client is **booted from the network** and **stateless**, which means that any device in the network can boot the thin client operating system, even if the device does not have a disk. During startup, the thin client image is loaded into RAM and booted from there. This puts two requirements on this solution: The clients need sufficient RAM (we have observed, that it's getting tight with 8GB RAM, so we recommend 16GB) and the network needs to be fast for adequate boot times.
+
+The use case we've implemented this for is for browser-based tasks. Both in retail shops and in warehouses, most of the workflows are browser-only. This means, we do not require a full-blown operating system with complex programs such as development environments, Microsoft Excel or other programs that are installed directly on the client.
+
 This is a step-by-step guide to spin up the netboot infrastructure as well as creating new images for the clients to boot from. In this scenario, you won't need to have a CI / CD Pipeline ready (which we do recommend). This will hopefully help you to get a better insight on how we have structured this project. Please note, that several commands can vary and that you might need to tweak some stuff here and there.
-\
-&nbsp;
 
-This image should give you an idea of the whole process, which you are going to tackle within this project.
+![Boot process](https://github.com/DigitecGalaxus/netbooting-thinclients/blob/main/docs/boot_process.svg "Boot process")
 
-![Netboot installation and usage flow](https://github.com/DigitecGalaxus/netbooting-thinclients/blob/main/docs/installation_flow.png "Installation and usage Flow")
+## Boot process
+
+1. A new client, which is configured in BIOS to boot via network is booted.
+2.  The client sends a DHCP broadcast to obtain it's IP and network booting information.
+3. The DHCP server (in our example, an Opnsense device) responds with the IP as well as the information, which contains the network boot server's IP address and the file names of the initial bootloader, which the client should fetch from the network boot server.
+4. The client fetches the initial bootloader from the network boot server
+5. The client runs the initial bootloader, which contains instructions to load the menu.ipxe from the network boot server
+6. The menu.ipxe contains the logic to show and boot various thin client images and allows the user to interact with the menu to select the desired image. If no selection is made, the default image is downloaded into RAM and booted. The files being downloaded are:
+    - initrd (Initial Ramdisk)
+    - kernel (Linux Kernel)
+    - squashFS (Filesystem containing the OS)
 
 ## Repository Overview
 
-Our Main repository consists of a few submodules. Please check out the README in each of the repositories to understand what it does. We will assume that you are already in the current working directory of the git repo.
-
-```cmd
-.
-├── CONTRIBUTORS.txt
-├── ocs
-├── LICENSE
-├── netboot
-├── jinja2-templating
-├── README.md
-├── squashfs-tools
-├── thinclients
-└── ubuntu-base
-```
-
-Because we are using submodules, we need to pull the latest files and update our HEAD to be on the latest commit on the "main" branch.
+This repository contains a few submodules. Please refer to the README in each of the repositories to understand what it does. Because submodules are used, pull the latest files and update the HEAD to be on the latest commit on the "main" branch.
 
 ```git
 git clone https://github.com/DigitecGalaxus/netbooting-thinclients.git
@@ -34,59 +41,66 @@ git submodule update --init --recursive
 git submodule foreach git pull origin main
 ```
 
-If you don't want to work with submodules, we recommend checking out [this gist](https://github.com/DigitecGalaxus/netbooting-thinclients), in order to convert the submodules to local folders in a single repository.
-\
-&nbsp;
 
 ## Prerequisites
 
-For the whole Setup to work, there are a few required services and servers, in order to fully support this project
-
-***NOTE: In this guide we won't setup a caching Server and the monitoring. Therefore you will see on some parts of this guide, that we need to modify a few files***
+For the network booting infrastructure to work, there are a few required services and servers.
 
 - Gateway, to redirect PXE netboot requests (we are using an [opnsense gateway](https://opnsense.org/) instance). We won't go into detail how to prepare a gateway.
-- a host/VM for the netboot-server (the services are deployed with docker)
-- a testclient, which will consume the generated image
-- a VM or buildpipeline to build the thinclient images
-\
-&nbsp;
+- a host/VM for the netboot-server (the services are deployed with docker-compose)
+- a test client, which will boot the thin client via network
+- a VM or buildpipeline to build the thinclient images (This can be done on your local computer too.)
 
 ## Prepare the netboot-Server
 
-We will be using a plain ubuntu 20.04 LTS server VM in order to host the necessary service for the netbooting infrastructure. Follow this step-by-step guide in order to set it up. We have set a static IP `192.168.1.101` for our netboot server, which we will use later as reference and pass to the scripts.
+Setup a VM with plain ubuntu 20.04 LTS server VM in order to host the necessary service for the netbooting infrastructure. Follow this step-by-step guide to set it up. Reserve a static IP for the netboot server (e.g `192.168.1.101` ).
 
-### 1. On your ubuntu server, install a few dependencies and tools
+***Note***
+`192.168.1.101` will be used as the example netboot-server IP in this guide.
+
+### 1. Install tools
 
 ```bash
 sudo apt-get update && sudo apt-get upgrade && sudo apt-get install git docker.io docker-compose jq curl
 ```
 
-### 2. Either create a new user or use your existing non-root account in order to continue with the installation. We don't want to install the netboot infrastructure in the root context
+### 2. Add user
+
+Either create a new user or use your existing non-root account in order to continue with the installation. We don't want to install the netboot infrastructure in the root context
 
 ```bash
-sudo adduser "USERNAME"
+username="netbootUser"
+sudo adduser "$username"
 ```
 
-### 3. Add your user to the docker system group and activate the changes instantly
+### 3. Add user to the docker group
 
 ```bash
-sudo gpasswd -a "USERNAME" docker
+sudo gpasswd -a "$username" docker
 newgrp docker
 ```
 
-### 4. Create a self-signed certificate, which is used by the various scripts, to move the newly generated files between the correct destinations. Afterwards, add the public key to the authorized_hosts file
+After adding the user, switch to the newly created user:
 
 ```bash
-openssl genrsa -out  ~/.ssh/netbootserver-priv.pem 1024
-openssl rsa -in  ~/.ssh/netbootserver-priv.pem -pubout >  ~/.ssh/netbootserver-pub.pub
-cat netbootserver-pub.pub >> ~/.ssh/authorized_keys
+su "$username"
 ```
 
-### 5. In order to deploy the services on our docker-host, execute the `run-compose.sh`.
+### 4. Create a self-signed certificate
 
-***As we have for this guide decided not to use the caching-servers and the monitoring, we need to either remove or comment two services in our docker-compose.yaml first.***
+The certficate is used by various scripts, to move the newly generated files between the correct destinations. Afterwards, add the public key to the authorized_hosts file.
 
-**Note**: If your are interested in setting up a caching-server for branches with lots of clients, we recommend to check out this [caching-server repository](https://github.com/DigitecGalaxus/netboot-caching). If you have any further question to this, reach out to us!
+```bash
+sudo openssl genrsa -out  /home/$USER/.ssh/netbootserver-priv.pem 1024
+sudo openssl rsa -in  /home/$USER/.ssh/netbootserver-priv.pem -pubout >  /home/$USER/.ssh/netbootserver-pub.pub
+sudo cat /home/$USER/netbootserver-pub.pub >> /home/$USER/.ssh/authorized_keys
+```
+
+### 5. Build and deploy the services
+
+***For this guide, the caching-servers and the monitoring is omitted. Therefore, remove or comment out two services in the docker-compose.yaml first.***
+
+**Note**: If your are interested in setting up a caching server for the network boot server (e.g. for networks with lots of clients), we recommend to check out the [caching-server repository](https://github.com/DigitecGalaxus/netboot-caching).
 
 ```yaml
 ...
@@ -117,10 +131,35 @@ cat netbootserver-pub.pub >> ~/.ssh/authorized_keys
 #    depends_on:
 #        - netboot-caching-server-fetcher
 #    restart: unless-stopped
+
+#  netboot-caching-server-fetcher:
+#    image: anymodconrst001dg.azurecr.io/planetexpress/caching-server-fetcher:latest
+#    container_name: netboot-caching-server-fetcher
+#    environment:
+#      - networksServiceURL=#{networksServiceURL}#
+#    volumes:
+#      - $HOME/netboot/caching_server_list.json:/work/caching_server_list.json
+#    restart:
+#      unless-stopped
+
+# netboot-build-ipxe-mac-menus:
+#    image: anymodconrst001dg.azurecr.io/planetexpress/netboot-ipxe-menu-generator:latest
+#    container_name: netboot-build-ipxe-mac-menus
+#    environment:
+#      - netbootServerIP
+#    volumes:
+#      - $HOME/netboot/caching_server_list.json:/work/caching_server_list.json
+#      - $HOME/netboot/config/menus:/work/menus
+#    depends_on:
+#      - netboot-caching-server-fetcher
+#    restart:
+#      unless-stopped
+#    command: /work/buildIpxeMacMenus.sh
+
 ...
 ```
 
-*This script needs the following variables passed to it:*
+*The script to build and run the network booting services needs the following variables passed to it:*
 
 - netbootServerIP
 - pemFilePath
@@ -130,28 +169,31 @@ cat netbootserver-pub.pub >> ~/.ssh/authorized_keys
 To deploy the docker-containers, we do:
 
 ```bash
-cd netboot
-./run-compose.sh "192.168.1.101" "~/.ssh/netbootserver-priv.pem"
+netbootingThinclientsPath=$(pwd)
+cd "$netbootingThinclientsPath/netboot"
+./run-compose.sh "192.168.1.101" "/home/$USER/.ssh/netbootserver-priv.pem"
 ```
 
-The netboot-installation Path will be `/home/USERNAME/netboot`. Don't mix this with your current working directory!
+The netboot-installation Path will be `/home/$USER/netboot`.
 
-### 6. Now we will prepare the initial-bootloader for the TFTP-server
+### 6. Prepare the initial-bootloader
 
 ```bash
-cd initial-bootloader
+cd "$netbootingThinclientsPath/netboot/initial-bootloader"
 ./dockerbuild.sh
 ```
 
-### 7. Move the newly generated files into the config directory of the netboot-server
+### 7. Copy initial bootloader to netboot volume
 
 ``` bash
-mv ipxe32.efi /home/USERNAME/netboot/config/menus/
-mv ipxe64.efi /home/USERNAME/config/menus/
-mv undionly.kpxe /home/USERNAME/config/menus/
+mv ipxe32.efi /home/$USER/netboot/config/menus/
+mv ipxe64.efi /home/$USER/netboot/config/menus/
+mv undionly.kpxe /home/$USER/netboot/config/menus/
 ```
 
-### 8. For clients to netboot, we need to add our netboot-server to our DHCP-server as "next-server". We are using an OPNSense Gateway for our environment. Lookup your documentations for your dhcp-server device / software. Also make sure that the DHCP-server is running and is offering IP addresses to clients
+### 8. Configure DHCP Server
+
+For clients to boot from the network, add the netboot-server to the DHCP-server as "next-server". We are using an OPNSense Gateway for our environment. Lookup the documentation for your DHCP-server device / software. Also make sure that the DHCP-server is running and is offering IP addresses to the test client.
 
 On an OPNSense, go to `Services > DHCPv4 > {YOUR LAN}`
 
@@ -163,105 +205,112 @@ On an OPNSense, go to `Services > DHCPv4 > {YOUR LAN}`
     - set UEFI 64bit filename: uefi64.efi
 ```
 
-### Now you should be able to network boot from the new netboot server. You can setup a new testclient / VM in the same network, and try to netboot. But we are not finished yet. If everything goes as expected, you will receive the following error while network booting
+### 9.  Boot the test client
 
-```cmd
+Now the test client should be able to boot from the network. You can setup a new test client / VM in the same network as the netboot server, and boot the test client. If everything goes as expected, the test client will fail to boot with the following error:
+
+```sh
 tftp://192.168.1.101/menu.ipxe... no such file or directory
 ```
 
 This is completely fine, as the menu.ipxe will be generated down the line of this guide.
-\
-&nbsp;
 
 ## Setup the pre-requisites for building custom images
 
 In this chapter, we will prepare and get any helper-tools, to finally build our ubuntu images and deploy them to the netboot-server.
 
-### 1. Build the docker image for Squashfs. Go back to your git root and do the docker builds.
+### 1. Prepare squashfs-tools
 
-```cmd
-cd ../../
-docker image build -t anymodconrst001dg.azurecr.io/planetexpress/squashfs-tools:latest ./squashfs-tools/
+Build the docker image for Squashfs. Go back to your git root and do the docker builds.
+
+```sh
+cd "$netbootingThinclientsPath/squashfs-tools"
+docker image build -t anymodconrst001dg.azurecr.io/planetexpress/squashfs-tools:latest .
 ```
 
-### 2. Build the docker image for Jinja2-Templating
+### 2. Prepare Jinja2-Templating
 
-```cmd
-docker image build -t anymodconrst001dg.azurecr.io/planetexpress/jinja2-templating:latest ./jinja2-templating/
+```sh
+cd "$netbootingThinclientsPath/jinja2-templating"
+docker image build -t anymodconrst001dg.azurecr.io/planetexpress/jinja2-templating:latest .
 ```
 
-### 3. Create the ubuntu-base image
+### 3. Build the ubuntu-base image
 
-```cmd
-cd ubuntu-base && ./build.sh && cd ..
+```sh
+cd "$netbootingThinclientsPath/ubuntu-base"
+./build.sh
 ```
 
 Now everything should be ready, in order to continue with the juicy part of this project - the thinclient repo!
-\
-&nbsp;
 
-## Build Ubuntu thinclient images and promote it to the netboot-server
+## Build custom thin client image
 
-In this part of the guide, we will get the last repository and show you, how you can build a custom image, in order for thincients to boot from.
+### 1. Get the latest kernel
 
-### 1. Change into the thinclients repository and build the image using the build.sh scripts. The output will be a squashFS file, which contains the image which will be delivered on network-booting.
+*This script needs the following variables passed to it:*
 
-To be fully functional, the netboot server must be ready and listening on port 80. This will ensure, that the correct kernel is used for building the image. Pass the IP of the netboot-server to the script, to fetch the latest kernel informations.
+- netbootServerIP
+- pemFilePath
+- netbootUsername
+
+```sh
+cd "$netbootingThinclientsPath/thinclients/kernel-updates"
+./get-kernel-updates.sh "/home/$USER/.ssh/netbootserver-priv.pem" "192.168.1.101" "$USER"
+```
+
+### 2. Build the thin client
+
+Change into the thinclients repository and build the image using the build.sh scripts. The output will be a squashFS file, which contains the file system which will be stored on the netboot server.
+
+To be fully functional, the netboot server must be ready and listening on port 80. You can verify this by checking the status of the netboot-http container.
 
 *This script needs the following variables passed to it:*
 
 - netbootServerIP
 
-```cmd
-cd thinclient/build
+```sh
+cd "$netbootingThinclientsPath/thinclient/build"
 ./build.sh "192.168.1.101"
+squashfsAbsolutePath="$(pwd)/$(find . -name "*.squashfs" | head -1)"
 ```
 
 This script will generate a squashfs file. It uses the current date, latest commit-SHA and branchname to generate the filename.
 
-### 2. Go to the Kernel Folder and build the custom Kernels
+Note that this build will take a while, especially when the docker cache is empty.
 
-*This script needs the following variables passed to it:*
 
-- netbootServerIP
-- pemFilePath
-- netbootUsername
-
-```cmd
-cd .. && cd kernel-updates
-./get-kernel-updates.sh "~/.ssh/netbootserver-priv.pem" "192.168.1.101" "USERNAME"
-```
-
-### 3. Promote the Generated "squashfs" File to the netboot Server
+### 3. Upload the generated "squashfs" file to the netboot server
 
 *This script needs the following Variables passed to it:*
 
 - pemFilePath
-- squashfsAbsolutePath (this file should be available after executing the `./build.sh` from step 1. Pass the absolute path of it!)
+- squashfsAbsolutePath (this file should be available after executing the `./build.sh` from step 2. Pass the absolute path of it!)
 - netbootServerIP
 - netbootUsername
 - folderToPromoteTo (either prod or dev)
 
-```cmd
-cd .. && cd promote
-./promote.sh "~/.ssh/netbootserver-priv.pem" "/home/USERNAME/GITROOT/thinclient/build/21-06-22-kde-master-55fa393.squashfs" "192.168.1.101" "USERNAME" "prod"
+```sh
+cd "$netbootingThinclientsPath/thinclient/promote"
+./promote.sh "/home/$USER/.ssh/netbootserver-priv.pem" "$squashfsAbsolutePath" "192.168.1.101" "$USER" "prod"
 ```
 
 ### 4. Generate the IPXE Menu based on the promoted Images
 
-*The following script will generate an IPXE Menu, which is used by the netboot server (and which we mentioned earlier as a dependency). Pass the following variables*
+Wait for the container `netboot-build-main-ipxe-menus` to build the new menu.ipxe. It will do this periodically every two minutes. Verify the created menu.ipxe to contain this line:
 
-- pemFilePath
-- netbootServerIP
-- netbootUsername
-- squashfsAbsolutePath (this file should be available after executing the `./build.sh` from step 1. Pass the absolute path of it!)
-
-```cmd
-./generate-new-ipxe-menus.sh "~/.ssh/netbootserver-priv.pem" "192.168.1.101" "USERNAME" "/home/USERNAME/GITROOT/thinclient/build/21-06-22-kde-master-55fa393.squashfs"
+```sh
+# A line similar to the following should be present in the menu.ipxe (with imageName set to your squashfs filename)
+echo "set squash_url http://192.168.1.101/prod/{{ imageName }}.squashfs"
+# Line should be contained in this file
+cat /home/$USER/netboot/config/menus/menu.ipxe
 ```
 
-### 5. When you have reached it this far, it looks very promising, that everything should be in place as expected! Now, you need to verify, if this is the case! To check if everything is in place, check the following directories and files
+### 5. Verify folder structure and generated files
 
+When you have reached it this far, it looks very promising, that everything should be in place as expected! Now, you need to verify, if this is the case! To check if everything is in place, check the following directories and files
+
+# TODO replace by tree of /home/$username/netboot
 ```cmd
 ASSETS:
 /home/USERNAME/netboot/assets/kernels/{KernelVersionName}/initrd
@@ -278,23 +327,18 @@ CONFIGS:
 /home/USERNAME/netboot/config/menus/undionly.kpxe
 ```
 
-Make sure to check , if the menu.ipxe has reasonable content and is not empty. Once those files are available and also reachable by your docker containers from the netboot repository, you should be able to spin up that machine!
+Make sure to check , if the menu.ipxe has reasonable content and is not empty. Once those files are available and also reachable by your docker containers from the netboot repository, you should be able to boot the test client via network!
 
-Go to your testclient and boot from PXE and enjoy a fresh built, stateless ubuntu OS!
+Go to your testclient and boot from PXE and enjoy a freshly built, stateless ubuntu OS!
 
 This project has been brought to you by Planet Express @ Digitec Galaxus AG!
-\
-&nbsp;
 
 ## Troubleshooting / Notes
 
 - This Guide has been tested on a lab-environment with Microsoft Hyper-V
-- This Guide does not contain the usage of the caching-server and monitoring features.
 - It shows the manual approach to use the project. We highly recommend using a CI / CD Platform that will take care of all the steps above! You can check out the associated azure-pipelines.yml as reference.
-- While there may be issues on the first attempt to build a Docker Image, make sure that you remove the temporarily generated files from your working directory when rebuilding the Docker Image. If you don't do this, the script ***can*** exit with an error.
+- While there may be issues on the first attempt to build a Docker Image, make sure that you remove the temporarily generated files from your working directory when rebuilding the Docker Image.
 - If you still have problems following this guide or get along with the setup, consider opening an issue. See [***Contribute***](#contribute)
-\
-&nbsp;
 
 ## Contribute
 
@@ -302,5 +346,4 @@ No matter how small, we value every contribution! If you wish to contribute,
 
 1. Please create an issue first - this way, we can discuss the feature and flesh out the nitty-gritty details
 2. Fork the repository, implement the feature and submit a pull request
-3. Add yourself to the CONTRIBUTORS.txt file in that pull request
-4. Your feature will be added once the pull request is merged
+3. Your feature will be added once the pull request is merged

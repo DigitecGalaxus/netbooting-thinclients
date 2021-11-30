@@ -7,9 +7,9 @@
 [submodule "jinja2-templating"]
 	path = jinja2-templating
 	url = https://github.com/DigitecGalaxus/jinja2-templating.git
-[submodule "netboot"]
-	path = netboot
-	url = https://github.com/DigitecGalaxus/netboot.git
 [submodule "thinclients"]
 	path = thinclients
 	url = https://github.com/DigitecGalaxus/thinclients.git
+[submodule "netboot"]
+	path = netboot
+	url = https://github.com/DigitecGalaxus/netboot.git

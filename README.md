@@ -300,7 +300,7 @@ To be fully functional, the netboot server must be ready and listening on port 8
 
 ```sh
 cd "$netbootingThinclientsPath/thinclients/build"
-./build.sh
+./build.sh "$netbootIP"
 squashfsAbsolutePath="$(pwd)/$(find . -name "*.squashfs" | head -1)"
 ```
 

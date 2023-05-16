@@ -21,7 +21,7 @@ This is a step-by-step guide to spin up the netboot infrastructure as well as cr
 ![Boot process](https://github.com/DigitecGalaxus/netbooting-thinclients/blob/main/docs/boot_process.svg "Boot process")
 
 1. A new client, which is configured in BIOS to boot via network is booted.
-2.  The client sends a DHCP broadcast to obtain it's IP and network booting information.
+2. The client sends a DHCP broadcast to obtain it's IP and network booting information.
 3. The DHCP server (in our example, an Opnsense device) responds with the IP as well as the information, which contains the network boot server's IP address and the file names of the initial bootloader, which the client should fetch from the network boot server.
 4. The client fetches the initial bootloader from the network boot server
 5. The client runs the initial bootloader, which contains instructions to load the menu.ipxe from the network boot server
@@ -258,14 +258,7 @@ cd "$netbootingThinclientsPath/jinja2-templating"
 docker image build -t anymodconrst001dg.azurecr.io/planetexpress/jinja2-templating:latest .
 ```
 
-### 3. Build the ubuntu-base image
-
-```sh
-cd "$netbootingThinclientsPath/ubuntu-base"
-./build.sh
-```
-
-### 4. Get the private key to the netboot server
+### 3. Get the private key to the netboot server
 
 To proceed with the thin client image build, get the private key that you created above from `/home/$USER/.ssh/netbootserver-priv.pem`. For simplicity, move it to the same location but on the device, where the thin client image is built. It is also possible to build it on the netboot server, however this is not recommended. Some parts of the script assume that it is not the same location and use `scp` to transfer files to the netboot server.
 
@@ -290,7 +283,7 @@ cd "$netbootingThinclientsPath/thinclients/kernel-updates"
 
 ### 2. Build the thin client
 
-Change into the thinclients repository and build the image using the build.sh scripts. The output will be a squashFS file, which contains the file system which will be stored on the netboot server.
+Change into the thinclients repository and build the image using the build/build.sh scripts. The output will be a squashFS file, which contains the file system which will be stored on the netboot server.
 
 To be fully functional, the netboot server must be ready and listening on port 80. You can verify this by checking the status of the netboot-http container.
 

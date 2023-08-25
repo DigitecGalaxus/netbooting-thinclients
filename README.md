@@ -254,7 +254,7 @@ Now everything should be ready, in order to continue with the juicy part of this
 ### 1. Get the latest kernel
 
 ```sh
-export netbootIP="172.28.52.230"
+export netbootIP="192.168.1.101"
 export netbootUser="netbootuser"
 cd "$netbootingThinclientsPath"/thinclients/kernel-updates
 ./get-kernel-updates.sh "/home/$USER/.ssh/netbootserver-priv.pem" "$netbootIP" "$netbootUser"
@@ -268,7 +268,7 @@ To be fully functional, the netboot server must be ready and listening on port 8
 
 ```sh
 cd "$netbootingThinclientsPath/thinclients/build"
-./build.sh netbootIP="172.28.52.230" branchName="main" buildSquashfsAndPromote="true" cachingServerIP="172.28.52.230" cachingServerUsername="netbootuser" 
+./build.sh netbootIP="192.168.1.101" branchName="main" buildSquashfsAndPromote="true" cachingServerIP="192.168.1.101" cachingServerUsername="netbootuser" 
 squashfsAbsolutePath="$(pwd)/$(find . -name "*.squashfs" | head -1)"
 ```
 

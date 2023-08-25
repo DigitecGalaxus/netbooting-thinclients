@@ -44,46 +44,20 @@ git submodule foreach git pull origin main
 For the network booting infrastructure to work, there are a few required services and servers.
 
 - Gateway, to redirect PXE netboot requests (we are using an [opnsense gateway](https://opnsense.org/) instance). We won't go into detail how to prepare a gateway.
-- a host/VM for the netboot-server (the services are deployed with docker-compose)
-- a test client, which will boot the thin client via network
-- a VM or buildpipeline to build the thinclient images (This can be done on your local computer too.)
+- A host/VM for the netboot-server (the services are deployed with docker-compose).
+- A test client, which will boot the thin client via network.
+- A VM or buildpipeline to build the thinclient images; this can be done on your local computer too.
 
-## Prepare the netboot-Server
+## Prepare the netboot server
 
-Setup a VM with plain ubuntu 22.04 LTS server VM in order to host the necessary service for the netbooting infrastructure. Follow this step-by-step guide to set it up. Reserve a static IP for the netboot server (e.g `192.168.1.101` ).
+We suggest a well supported distribution (such as Ubuntu or Fedora).
 
-***Note***
-`192.168.1.101` will be used as the example netboot-server IP in this guide.
+### 1. Install Docker
 
-### 1. Install Docker pre-requisites
-
-```bash
-sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get install -y git jq ca-certificates curl gnupg file
-```
-#### 1.1 Install Docker's official GPG key
-
-According to the [official documentation](https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository), the following commands will install Docker's official GPG key and add the stable repository.
+Either consult https://docs.docker.com/engine/install/ or if you are brave:
 
 ```bash
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-```
-
-#### 1.2 Add Docker apt repository
-
-```bash
-echo \
-  "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-```
-
-#### 1.3 Install Docker Engine
-
-```bash
-sudo apt-get update
-sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+curl -fsSL <https://get.docker.com> -o get-docker.sh && sudo sh get-docker.sh
 ```
 
 ### 2. Add user
@@ -189,27 +163,15 @@ b3834bc37a0e   dgpublicimagesprod.azurecr.io/planetexpress/netboot-monitoring:la
 7d208eec4c5d   dgpublicimagesprod.azurecr.io/planetexpress/netboot-tftp:latest                  "/usr/sbin/in.tftpd …"   3 seconds ago   Up 2 seconds   0.0.0.0:69->69/udp, :::69->69/udp   netboot-tftp
 ```
 
-Also verify if you can access the netboot server via HTTP. Open a browser and navigate to `http://192.168.1.101/`. You should see a page similar to this:
-
-![Netboot Server](https://raw.githubusercontent.com/DigitecGalaxus/netbooting-thinclients/main/docs/http-netboot-server.png "Netboot Server")
+Verify if you can access the netboot server via HTTP. Open a browser and navigate to the respective endpoint.
 
 ## Gateway configuration
 
-### 1. Configure DHCP Server
+### 1. Configure DHCP value for next-server.
 
-For clients to boot from the network, add the netboot-server to the DHCP-server as "next-server". We are using an OPNSense Gateway for our environment. Lookup the documentation for your DHCP-server device / software. Also make sure that the DHCP-server is running and is offering IP addresses to the test client.
+The next-server value can be configured for DHCP leases and tells the clients where to attempt a netboot. The configuration is depending on the DHCP server you're using.
 
-On an OPNSense, go to `Services > DHCPv4 > {YOUR LAN}`
-
-```undefined
-- Enable network booting
-    - set next-server: 192.168.1.101
-    - set default bios filename: undionly.kpxe
-    - set UEFI 32bit filename: uefi32.efi
-    - set UEFI 64bit filename: uefi64.efi
-```
-
-### 10.  Boot the test client
+### 2.  Boot the test client
 
 Now the test client should be able to boot from the network. You can setup a new test client / VM in the same network as the netboot server, and boot the test client. If everything goes as expected, the test client will fail to boot with the following error:
 

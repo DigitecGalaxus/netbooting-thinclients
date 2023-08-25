@@ -169,7 +169,13 @@ Verify if you can access the netboot server via HTTP. Open a browser and navigat
 
 ### 1. Configure DHCP value for next-server.
 
-The next-server value can be configured for DHCP leases and tells the clients where to attempt a netboot. The configuration is depending on the DHCP server you're using.
+The next-server value can be configured for DHCP leases and tells the clients where to attempt a netboot. The configuration is depending on the DHCP server you're using. The `dgpublicimagesprod.azurecr.io/planetexpress/netboot-tftp` image already has the bootloaders in place. 
+
+```
+default bios filename:  undionly.kpxe
+UEFI 32bit filename:    uefi32.efi
+UEFI 64bit filename:    uefi64.efi
+```
 
 ### 2.  Boot the test client
 

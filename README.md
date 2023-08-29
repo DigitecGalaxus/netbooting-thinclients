@@ -52,7 +52,13 @@ For the network booting infrastructure to work, there are a few required service
 
 We suggest a well supported distribution (such as Ubuntu or Fedora).
 
-### 1. Install Docker
+### 1. Install Updates and necessary tools
+
+```bash
+sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get install -y git jq ca-certificates curl gnupg file
+```
+
+### 2. Install Docker
 
 Either consult https://docs.docker.com/engine/install/ or if you are brave:
 
@@ -60,7 +66,7 @@ Either consult https://docs.docker.com/engine/install/ or if you are brave:
 curl -fsSL <https://get.docker.com> -o get-docker.sh && sudo sh get-docker.sh
 ```
 
-### 2. Add user
+### 3. Add user
 
 Either create a new user or use your existing non-root account in order to continue with the installation.
 
@@ -69,7 +75,7 @@ username="netbootuser"
 sudo adduser "$username"
 ```
 
-### 3. Add user to the docker and sudoers group
+### 4. Add user to the docker and sudoers group
 
 ```bash
 sudo usermod -aG docker "$username"
@@ -81,7 +87,7 @@ After adding the user, switch to the newly created user:
 ```bash
 su "$username"
 ```
-### 4. Create a SSH key
+### 5. Create a SSH key
 
 The certficate is used by various scripts, to move the newly generated files between the correct destinations. Afterwards, add the public key to the authorized_hosts file.
 
@@ -92,7 +98,7 @@ openssl rsa -in /home/$USER/.ssh/netbootserver-priv.pem -pubout > /home/$USER/.s
 ssh-keygen -i -m PKCS8 -f /home/$USER/.ssh/netbootserver-pub.pem >> /home/$USER/.ssh/authorized_keys
 ```
 
-### 5. Check out the netboot repository
+### 6. Check out the netboot repository
 
 As a preparation for the next step, check out the netboot repository on the VM.
 
@@ -103,7 +109,7 @@ git submodule update --init --recursive
 git submodule foreach git pull origin main
 ```
 
-### 6. Build and deploy the services
+### 7. Build and deploy the services
 ***Remove or comment out the services you don't want in the docker-compose.yaml first.***
 
 *The tools to build and run the network booting services need custom environment variable files. you'll find examples with all available options in the respective subfolder. By default, the `docker-compose.yml` looks for the `.env` files in the $HOME directory. This can be adjusted to your preferences.*
@@ -133,7 +139,7 @@ docker build -t dgpublicimagesprod.azurecr.io/planetexpress/netboot-http:latest 
 cd
 ```
 
-### 7. Prepare the required assets folder
+### 8. Prepare the required assets folder
 
 The stack needs a few folders to be present in order to work properly. Create the following folders:
 
@@ -144,7 +150,7 @@ mkdir -p $HOME/netboot/assets/prod      # This is where the prod images will be 
 mkdir -p $HOME/netboot/assets/kernels   # This is where the kernels will be stored / synced
 ```
 
-### 8. Start the services
+### 9. Start the services
 
 ```bash
 cd $HOME/netbooting-thinclients/netboot/

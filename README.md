@@ -310,8 +310,6 @@ UEFI 64bit filename:    uefi64.efi
 
 Now the test client should be able to boot from the network. You can setup a new test client / VM in the same network as the netboot server, and boot the test client. Once those files are available on the netboot server, the containers will serve them via TFTP (Port 69) and HTTP (Port 80). The test client should now be able to boot the test client via network!
 
-Go to your testclient and boot from PXE and enjoy a freshly built, stateless ubuntu OS!
-
 This project has been brought to you by Planet Express @ Digitec Galaxus AG!
 
 ## Troubleshooting / Notes

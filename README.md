@@ -10,7 +10,7 @@ This is repository ties together all repositories to make netbooting thinclients
 
 The thin client is **booted from the network** and **stateless**, which means that any device in the network can boot the thin client operating system, even if the device does not have a disk. During startup, the thin client image is loaded into RAM and booted from there. This puts two requirements on this solution: The clients need sufficient RAM (we have observed, that it's getting tight with 8GB RAM, so we recommend 16GB) and the network needs to be fast for adequate boot times.
 
-The use caseis mostly for browser-based tasks. Both in retail shops and in warehouses, most of the workflows are browser-only. This means, we do not require a full-blown operating system with complex programs such as development environments, Microsoft Excel or other programs that are installed directly on the client.
+The usecase is mostly for browser-based tasks. Both in retail shops and in warehouses, most of the workflows are browser-only. This means, we do not require a full-blown operating system with complex programs such as development environments, Microsoft Excel or other programs that are installed directly on the client.
 
 This is a step-by-step guide to spin up the netboot infrastructure as well as creating new images for the clients to boot from. In this scenario, you won't need to have a CI / CD Pipeline ready (which we do recommend). This will hopefully help you to get a better insight on how we have structured this project. Please note, that several commands can vary and that you might need to tweak some stuff here and there.
 

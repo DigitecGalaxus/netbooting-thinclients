@@ -146,9 +146,8 @@ The stack needs a few folders to be present in order to work properly. Create th
 
 ```bash
 mkdir -p $HOME/netboot/config/menus     # This is where the menu.ipxe will be generated and placed
-mkdir -p $HOME/netboot/assets/dev       # This is where the dev images will be stored / synced
-mkdir -p $HOME/netboot/assets/prod      # This is where the prod images will be stored / synced
-mkdir -p $HOME/netboot/assets/kernels   # This is where the kernels will be stored / synced
+mkdir -p $HOME/netboot/assets/dev       # This is where the dev netbooting artifacts will be stored / synced
+mkdir -p $HOME/netboot/assets/prod      # This is where the prod netbooting artifacts will be stored / synced
 ```
 
 ### 9. Start the services
@@ -206,60 +205,18 @@ Now everything should be ready, in order to continue with the juicy part of this
 
 ## Build custom thin client image
 
-### 1. Get the latest kernel 
+### 1. Build the thin client artifacts and promote them to the netboot server
 
-We have the option to use our custom script that is adjusted for Azure BlobStorage Accounts. If you don't have one, you can use the local storage on the netboot server and get the latest kernel from there.
-
-#### With BlopstorageAccount
-
-```sh
-export armSasToken="your-azure-blob-storage-sas-token"
-cd "$netbootingThinclientsPath"/thinclients/kernel-updates
-./get-kernel-updates.sh $armSasToken
-```
-
-#### With local storage on netboot server
-
-Follow this simple guide to download the latest kernels for ubuntu 23.04 KDE within the `netboot.xyz` project. 
-
-```sh
-cd "$netbootingThinclientsPath"/thinclients/kernel-updates
-latestRelease=$(curl -sL "https://api.github.com/repos/netbootxyz/netboot.xyz/releases/latest" | jq -r '.tag_name')
-wget "https://raw.githubusercontent.com/netbootxyz/netboot.xyz/$latestRelease/endpoints.yml"
-source "./yaml-parser.sh"
-create_variables endpoints.yml yaml
-rm -f ./endpoints.yml
-curl -L -o vmlinuz "https://github.com/netbootxyz${yamlendpoints_ubuntu_23_04_KDE_squash_path}vmlinuz"
-curl -L -o initrd "https://github.com/netbootxyz${yamlendpoints_ubuntu_23_04_KDE_squash_path}initrd"
-kernelVersion=$(file -b vmlinuz | grep -o 'version [^ ]*' | cut -d ' ' -f 2)
-echo '{ "version": "'"$kernelVersion"'" }' >latest-kernel-version.json
-```
-
-Now manually prepare the kernels folder and promote the kernel to the netboot server.
-
-```sh
-mkdir -p $HOME/netboot/assets/kernels/"$kernelVersion"
-scp -i /home/$USER/.ssh/netbootserver-priv.pem ./vmlinuz "$netbootUser"@192.168.1.101:/home/"$netbootUser"/netboot/assets/kernels/"$kernelVersion"/vmlinuz
-scp -i /home/$USER/.ssh/netbootserver-priv.pem ./initrd "$netbootUser"@192.168.1.101:/home/"$netbootUser"/netboot/assets/kernels/"$kernelVersion"/initrd
-scp -i /home/$USER/.ssh/netbootserver-priv.pem ./latest-kernel-version.json "$netbootUser"@192.168.1.101:/home/"$netbootUser"/netboot/assets/kernels/latest-kernel-version.json
-```
-
-### 2. Build the thin client and promote to prod
-
-Change into the build folder use the build/build.sh script. The output will be a squashFS file, which contains the file system which will be stored on the netboot server and already put into the prod folder.
+Change into the build folder use the build/build.sh script. The output will be three artifact files: initrd, kernel and squashfs. These can then be put into a folder (name it how you please) inside the prod-folder on the netboot server. The menu generator will then pick these folders and artifacts up and generate the boot menu entries.
 
 ```sh
 cd "$netbootingThinclientsPath/thinclients/build"
-./build.sh netbootIP="192.168.1.101" netbootUsername="netbootuser" netbootSSHPrivateKey="/home/$USER/.ssh/netbootserver-priv.pem" branchName="main" buildSquashfsAndPromote="true" folderToPromoteTo="prod"
-squashfsAbsolutePath="$(pwd)/$(find . -name "*.squashfs" | head -1)"
+./build.sh exportArtifacts=true
 ```
-
-This script will generate a squashfs file. It uses the current date, latest commit-SHA and branchname to generate the filename.
-Note that this build will take a while, especially when the docker cache is empty. Also
 
 ### 3. Generate the IPXE Menu based on the promoted Images
 
-On the netboot server, wait for the container `netboot-build-main-ipxe-menus` to build the new menu.ipxe. It will do this periodically every minute. Verify that the squashfs files are in the correct folder on the netboot server and if the menu.ipxe has been generated. Ensure that you will have at least one `prod` image in the `assets/prod` folder, otherwise the menu will not be generated.
+On the netboot server, wait for the container `netboot-build-main-ipxe-menus` to build the new menu.ipxe. It will do this periodically every minute. Verify that the squashfs files are in the correct folder on the netboot server and if the menu.ipxe has been generated. Ensure that you will have at least one `prod` folder with images in the `assets/prod` folder, otherwise the menu will not be generated.
 
 ```bash
 ls ~/netboot/assets/dev
@@ -275,16 +232,23 @@ When you have reached it this far, it looks very promising, that everything shou
 ```undefined
 ├── assets
 │   ├── dev
-│   │   ├── 23-08-25-main-51b6c7c-base-kernel.json
-│   │   └── 23-08-25-main-51b6c7c-base.squashfs
-│   ├── kernels
-│   │   ├── 6.2.0-20-generic
-│   │   │   ├── initrd
-│   │   │   └── vmlinuz
-│   │   └── latest-kernel-version.json
+│   │   ├── version1
+│   │   │   ├── initrd
+│   │   │   ├── vmlinuz
+│   │   │   └── thinclient-base.squashfs
+│   │   ├── version2
+│   │   │   ├── initrd
+│   │   │   ├── vmlinuz
+│   │   │   └── thinclient-base.squashfs
 │   └── prod
-│       ├── 23-08-24-main-51b6c7c-base-kernel.json
-│       └── 23-08-24-main-51b6c7c-base.squashfs
+│       ├── version1
+│       │   ├── initrd
+│       │   ├── vmlinuz
+│       │   └── thinclient-base.squashfs
+│       ├── version2
+│       │   ├── initrd
+│       │   ├── vmlinuz
+│       │   └── thinclient-base.squashfs
 ├── config
 │   └── menus
 │       ├── advancedmenu.ipxe
@@ -294,6 +258,7 @@ When you have reached it this far, it looks very promising, that everything shou
 └── netboot-services
     ├── cleaner
     ...
+
 ```
 
 ### 6. Configure Gateway configuration

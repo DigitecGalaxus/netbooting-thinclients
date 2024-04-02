@@ -146,9 +146,8 @@ The stack needs a few folders to be present in order to work properly. Create th
 
 ```bash
 mkdir -p $HOME/netboot/config/menus     # This is where the menu.ipxe will be generated and placed
-mkdir -p $HOME/netboot/assets/dev       # This is where the dev images will be stored / synced
-mkdir -p $HOME/netboot/assets/prod      # This is where the prod images will be stored / synced
-mkdir -p $HOME/netboot/assets/kernels   # This is where the kernels will be stored / synced
+mkdir -p $HOME/netboot/assets/dev       # This is where the dev netbooting artifacts will be stored / synced
+mkdir -p $HOME/netboot/assets/prod      # This is where the prod netbooting artifacts will be stored / synced
 ```
 
 ### 9. Start the services
@@ -170,9 +169,7 @@ b3834bc37a0e   dgpublicimagesprod.azurecr.io/planetexpress/netboot-monitoring:la
 7d208eec4c5d   dgpublicimagesprod.azurecr.io/planetexpress/netboot-tftp:latest                  "/usr/sbin/in.tftpd …"   3 seconds ago   Up 2 seconds   0.0.0.0:69->69/udp, :::69->69/udp   netboot-tftp
 ```
 
-Also verify if you can access the netboot server via HTTP. Open a browser and navigate to `http://192.168.1.101/`. You should see a page similar to this:
-
-![Netboot Server](https://raw.githubusercontent.com/DigitecGalaxus/netbooting-thinclients/main/docs/http-netboot-server.png "Netboot Server")
+Also verify if you can access the netboot server via HTTP. Open a browser and navigate to `http://192.168.1.101/`. 
 
 ## Setup the pre-requisites for building custom images (on the netbootserver itself)
 
@@ -206,60 +203,18 @@ Now everything should be ready, in order to continue with the juicy part of this
 
 ## Build custom thin client image
 
-### 1. Get the latest kernel 
+### 1. Build the thin client artifacts and promote them to the netboot server
 
-We have the option to use our custom script that is adjusted for Azure BlobStorage Accounts. If you don't have one, you can use the local storage on the netboot server and get the latest kernel from there.
-
-#### With BlopstorageAccount
-
-```sh
-export armSasToken="your-azure-blob-storage-sas-token"
-cd "$netbootingThinclientsPath"/thinclients/kernel-updates
-./get-kernel-updates.sh $armSasToken
-```
-
-#### With local storage on netboot server
-
-Follow this simple guide to download the latest kernels for ubuntu 23.04 KDE within the `netboot.xyz` project. 
-
-```sh
-cd "$netbootingThinclientsPath"/thinclients/kernel-updates
-latestRelease=$(curl -sL "https://api.github.com/repos/netbootxyz/netboot.xyz/releases/latest" | jq -r '.tag_name')
-wget "https://raw.githubusercontent.com/netbootxyz/netboot.xyz/$latestRelease/endpoints.yml"
-source "./yaml-parser.sh"
-create_variables endpoints.yml yaml
-rm -f ./endpoints.yml
-curl -L -o vmlinuz "https://github.com/netbootxyz${yamlendpoints_ubuntu_23_04_KDE_squash_path}vmlinuz"
-curl -L -o initrd "https://github.com/netbootxyz${yamlendpoints_ubuntu_23_04_KDE_squash_path}initrd"
-kernelVersion=$(file -b vmlinuz | grep -o 'version [^ ]*' | cut -d ' ' -f 2)
-echo '{ "version": "'"$kernelVersion"'" }' >latest-kernel-version.json
-```
-
-Now manually prepare the kernels folder and promote the kernel to the netboot server.
-
-```sh
-mkdir -p $HOME/netboot/assets/kernels/"$kernelVersion"
-scp -i /home/$USER/.ssh/netbootserver-priv.pem ./vmlinuz "$netbootUser"@192.168.1.101:/home/"$netbootUser"/netboot/assets/kernels/"$kernelVersion"/vmlinuz
-scp -i /home/$USER/.ssh/netbootserver-priv.pem ./initrd "$netbootUser"@192.168.1.101:/home/"$netbootUser"/netboot/assets/kernels/"$kernelVersion"/initrd
-scp -i /home/$USER/.ssh/netbootserver-priv.pem ./latest-kernel-version.json "$netbootUser"@192.168.1.101:/home/"$netbootUser"/netboot/assets/kernels/latest-kernel-version.json
-```
-
-### 2. Build the thin client and promote to prod
-
-Change into the build folder use the build/build.sh script. The output will be a squashFS file, which contains the file system which will be stored on the netboot server and already put into the prod folder.
+Change into the build folder use the build/build.sh script. The output will be three artifact files: initrd, kernel and squashfs. These can then be put into a folder (name it how you please) inside the prod-folder on the netboot server. The menu generator will then pick these folders and artifacts up and generate the boot menu entries.
 
 ```sh
 cd "$netbootingThinclientsPath/thinclients/build"
-./build.sh netbootIP="192.168.1.101" netbootUsername="netbootuser" netbootSSHPrivateKey="/home/$USER/.ssh/netbootserver-priv.pem" branchName="main" buildSquashfsAndPromote="true" folderToPromoteTo="prod"
-squashfsAbsolutePath="$(pwd)/$(find . -name "*.squashfs" | head -1)"
+./build.sh exportArtifacts=true
 ```
 
-This script will generate a squashfs file. It uses the current date, latest commit-SHA and branchname to generate the filename.
-Note that this build will take a while, especially when the docker cache is empty. Also
+### 2. Generate the IPXE Menu based on the promoted Images
 
-### 3. Generate the IPXE Menu based on the promoted Images
-
-On the netboot server, wait for the container `netboot-build-main-ipxe-menus` to build the new menu.ipxe. It will do this periodically every minute. Verify that the squashfs files are in the correct folder on the netboot server and if the menu.ipxe has been generated. Ensure that you will have at least one `prod` image in the `assets/prod` folder, otherwise the menu will not be generated.
+On the netboot server, wait for the container `netboot-build-main-ipxe-menus` to build the new menu.ipxe. It will do this periodically every minute. Verify that the squashfs files are in the correct folder on the netboot server and if the menu.ipxe has been generated. Ensure that you will have at least one `prod` folder with images in the `assets/prod` folder, otherwise the menu will not be generated.
 
 ```bash
 ls ~/netboot/assets/dev
@@ -268,23 +223,30 @@ ls ~/netboot/config/menus/
 cat ~/netboot/config/menus/menu.ipxe | grep "set squash_url"
 ```
 
-### 5. Verify folder structure and generated files
+### 3. Verify folder structure and generated files
 
 When you have reached it this far, it looks very promising, that everything should be in place as expected! Now, you need to verify, if this is the case! To check if everything is in place, check the following structure on the netboot server at `/home/$USER/netboot`.
 
 ```undefined
 ├── assets
 │   ├── dev
-│   │   ├── 23-08-25-main-51b6c7c-base-kernel.json
-│   │   └── 23-08-25-main-51b6c7c-base.squashfs
-│   ├── kernels
-│   │   ├── 6.2.0-20-generic
-│   │   │   ├── initrd
-│   │   │   └── vmlinuz
-│   │   └── latest-kernel-version.json
+│   │   ├── version1
+│   │   │   ├── initrd
+│   │   │   ├── vmlinuz
+│   │   │   └── thinclient-base.squashfs
+│   │   ├── version2
+│   │   │   ├── initrd
+│   │   │   ├── vmlinuz
+│   │   │   └── thinclient-base.squashfs
 │   └── prod
-│       ├── 23-08-24-main-51b6c7c-base-kernel.json
-│       └── 23-08-24-main-51b6c7c-base.squashfs
+│       ├── version1
+│       │   ├── initrd
+│       │   ├── vmlinuz
+│       │   └── thinclient-base.squashfs
+│       ├── version2
+│       │   ├── initrd
+│       │   ├── vmlinuz
+│       │   └── thinclient-base.squashfs
 ├── config
 │   └── menus
 │       ├── advancedmenu.ipxe
@@ -294,9 +256,10 @@ When you have reached it this far, it looks very promising, that everything shou
 └── netboot-services
     ├── cleaner
     ...
+
 ```
 
-### 6. Configure Gateway configuration
+### 4. Configure Gateway configuration
 
 The next-server value can be configured for DHCP leases and tells the clients where to attempt a netboot. The configuration is depending on the DHCP server you're using. The `dgpublicimagesprod.azurecr.io/planetexpress/netboot-tftp` image already has the bootloaders in place. 
 
@@ -306,7 +269,7 @@ UEFI 32bit filename:    uefi32.efi
 UEFI 64bit filename:    uefi64.efi
 ```
 
-### 2.  Boot the test client
+### 5.  Boot the test client
 
 Now the test client should be able to boot from the network. You can setup a new test client / VM in the same network as the netboot server, and boot the test client. Once those files are available on the netboot server, the containers will serve them via TFTP (Port 69) and HTTP (Port 80). The test client should now be able to boot the test client via network!
 

@@ -169,9 +169,7 @@ b3834bc37a0e   dgpublicimagesprod.azurecr.io/planetexpress/netboot-monitoring:la
 7d208eec4c5d   dgpublicimagesprod.azurecr.io/planetexpress/netboot-tftp:latest                  "/usr/sbin/in.tftpd …"   3 seconds ago   Up 2 seconds   0.0.0.0:69->69/udp, :::69->69/udp   netboot-tftp
 ```
 
-Also verify if you can access the netboot server via HTTP. Open a browser and navigate to `http://192.168.1.101/`. You should see a page similar to this:
-
-![Netboot Server](https://raw.githubusercontent.com/DigitecGalaxus/netbooting-thinclients/main/docs/http-netboot-server.png "Netboot Server")
+Also verify if you can access the netboot server via HTTP. Open a browser and navigate to `http://192.168.1.101/`. 
 
 ## Setup the pre-requisites for building custom images (on the netbootserver itself)
 
@@ -214,7 +212,7 @@ cd "$netbootingThinclientsPath/thinclients/build"
 ./build.sh exportArtifacts=true
 ```
 
-### 3. Generate the IPXE Menu based on the promoted Images
+### 2. Generate the IPXE Menu based on the promoted Images
 
 On the netboot server, wait for the container `netboot-build-main-ipxe-menus` to build the new menu.ipxe. It will do this periodically every minute. Verify that the squashfs files are in the correct folder on the netboot server and if the menu.ipxe has been generated. Ensure that you will have at least one `prod` folder with images in the `assets/prod` folder, otherwise the menu will not be generated.
 
@@ -225,7 +223,7 @@ ls ~/netboot/config/menus/
 cat ~/netboot/config/menus/menu.ipxe | grep "set squash_url"
 ```
 
-### 5. Verify folder structure and generated files
+### 3. Verify folder structure and generated files
 
 When you have reached it this far, it looks very promising, that everything should be in place as expected! Now, you need to verify, if this is the case! To check if everything is in place, check the following structure on the netboot server at `/home/$USER/netboot`.
 
@@ -261,7 +259,7 @@ When you have reached it this far, it looks very promising, that everything shou
 
 ```
 
-### 6. Configure Gateway configuration
+### 4. Configure Gateway configuration
 
 The next-server value can be configured for DHCP leases and tells the clients where to attempt a netboot. The configuration is depending on the DHCP server you're using. The `dgpublicimagesprod.azurecr.io/planetexpress/netboot-tftp` image already has the bootloaders in place. 
 
@@ -271,7 +269,7 @@ UEFI 32bit filename:    uefi32.efi
 UEFI 64bit filename:    uefi64.efi
 ```
 
-### 2.  Boot the test client
+### 5.  Boot the test client
 
 Now the test client should be able to boot from the network. You can setup a new test client / VM in the same network as the netboot server, and boot the test client. Once those files are available on the netboot server, the containers will serve them via TFTP (Port 69) and HTTP (Port 80). The test client should now be able to boot the test client via network!
 

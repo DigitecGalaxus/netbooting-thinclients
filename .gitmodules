@@ -5,7 +5,7 @@
 	path = jinja2-templating
 	url = https://github.com/DigitecGalaxus/jinja2-templating.git
 [submodule "thinclients"]
-	path = thinclients
+	path = thinclient-base
 	url = https://github.com/DigitecGalaxus/thinclients.git
 [submodule "netboot"]
 	path = netboot

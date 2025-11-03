@@ -1,6 +1,6 @@
-[submodule "thinclients"]
+[submodule "thinclient-base"]
 	path = thinclient-base
-	url = https://github.com/DigitecGalaxus/thinclients.git
+	url = https://github.com/DigitecGalaxus/thinclient-base.git
 [submodule "netboot"]
 	path = netboot
 	url = https://github.com/DigitecGalaxus/netboot.git
